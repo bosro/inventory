@@ -1,0 +1,215 @@
+using the below django files/html can you show me why mine update btn isnt working
+
+
+
+from django.shortcuts import render, redirect
+from django.http import HttpResponse
+from django.contrib.auth.decorators import login_required
+from .models import Product
+from .forms import ProductForm
+
+
+# Create your views here.
+
+@login_required(login_url='user-login')
+def index(request):
+    return render(request, 'dashboard/index.html')
+
+@login_required(login_url='user-login')
+def staff(request):
+    return render(request, 'dashboard/staff.html')
+
+@login_required(login_url='user-login')
+def product(request):
+    items = Product.objects.all() #USING ORM
+    #items = Product.objects.raw('SELECT * FROM dashboard_product')
+    if request.method == 'POST':
+        form = ProductForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('dashboard-product')
+    else:
+        form = ProductForm()
+        
+    context = {
+        'items': items,  
+        'form': form,   
+    }
+    
+    return render(request, 'dashboard/product.html', context)
+
+
+def product_delete(request, pk):
+    item = Product.objects.get(id=pk)
+    if request.method == 'POST':
+        item.delete()
+        return redirect('dashboard-product')
+    return render(request, 'dashboard/product_delete.html')
+
+def product_update(request, pk):
+    item = Product.objects.get(id=pk)
+    if request.method == 'POST':
+        form = ProductForm(request.POST, instance=item)
+        if form.is_valid():
+            form.save()
+            return redirect('dashboard-product')
+    else:
+        form = ProductForm(instance=item)
+    context = {
+        'form': form,
+        
+    }
+    return render(request, 'dashboard/product_update.html', context)
+
+
+
+@login_required(login_url='user-login')
+def order(request):
+    return render(request, 'dashboard/order.html')
+
+
+
+
+
+
+
+------------------------------
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('dashboard/', views.index, name='dashboard-index'),
+    path('staff/', views.staff, name='dashboard-staff'),
+    path('product/', views.product, name='dashboard-product'),
+    path('order/', views.order, name='dashboard-order'),
+    path('product/delete/<int:pk>/', views.product_delete, name='dashboard-product-delete'),
+    path('product/update/<int:pk>/', views.product_update, name='dashboard-product-update'),
+
+]
+
+
+
+----------------------------
+
+
+
+from django import forms
+from .models import Product
+
+
+
+class ProductForm(forms.ModelForm):
+    
+    class Meta:
+        model = Product
+        fields = ['name', 'category', 'quantity']
+
+
+
+        -------------------------------------
+
+
+        from django.db import models
+from django.contrib.auth.models import User
+
+# Create your models here.
+CATEGORY = (
+    ('Stationary','Stationary'),
+    ('Electronics','Electronics'),
+    ('Food','Food'),  
+)
+
+
+class Product(models.Model):
+    name = models.CharField(max_length=100, null=True)
+    category = models.CharField(max_length=20, choices=CATEGORY, null=True)
+    quantity = models.PositiveBigIntegerField(null=True)
+    
+    class Meta:
+        verbose_name_plural = 'Product'
+
+    def __str__(self):
+        return f'{self.name}-{self.quantity}'
+    
+    
+class Order(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True)
+    staff = models.ForeignKey(User, models.CASCADE, null=True)
+    order_quantity = models.PositiveBigIntegerField(null=True)
+    date = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name_plural = 'Order'
+
+    def __str__(self):
+        return f'{self.product} ordered by {self.staff.username}'
+
+
+
+
+        -----------------------------
+
+
+
+        {% extends 'partials/base.html' %}
+{%  block title %} Products Page  {% endblock %}
+{% load crispy_forms_tags %}
+
+
+
+
+{%  block content %}  
+
+{% include 'partials/topnav.html'%}
+
+<!--Table-->
+<div class="container">
+    <div class="row my-4">
+        <div class="col-md-4">
+            <div class="border bg-white p-3">
+                <h4>Add Products</h4>
+                <hr>
+                <form method="POST">
+                   {% csrf_token %} 
+                   {{ form|crispy }}
+                    <input class="btn btn-success btn-block" type="submit" value="Add Product">
+
+                </form>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <table class="table bg-white">
+                <thead class="bg-info">
+                    <tr class="text-white">
+                        <th scope="col">#</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Category</th>
+                        <th scope="col">Quantity</th>
+                        <th scope="col">Activity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <th scope="row">1</th>
+                        <td>{{ item.name }}</td>
+                        <td>{{ item.category }}</td>
+                        <td>{{ item.quantity }}</td>
+                        <td>
+                            <a class="btn btn-info btn-sm" href="{% url 'dashboard-product-update' item.id %}">Edit</a>
+                            <a class="btn btn-danger btn-sm" href="{% url 'dashboard-product-delete' item.id %}">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+
+
+<!--End Table-->
+
+{% endblock %}
